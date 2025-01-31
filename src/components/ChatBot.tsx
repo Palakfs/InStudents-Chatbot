@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { MessageCircle, Send, Sparkles, HelpCircle } from 'lucide-react';
 import { Groq } from "groq-sdk";
 import { ChatMessage, Stream, ChatMode, ChatState, Grade } from '../types';
@@ -155,6 +155,7 @@ export default function ChatBot() {
     }
 
     setMessages(prev => [...prev, { type: 'bot', content: botResponse }]);
+    console.log(chatState);
   };
 
   return (
