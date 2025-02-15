@@ -1,5 +1,6 @@
 export type Stream = 'science-maths' | 'science-bio' | 'commerce' | 'arts';
 export type Grade = '9-10' | '11-12';
+export type Country = 'Country'
 
 export interface Career {
   title: string;
@@ -19,6 +20,8 @@ export interface StreamInfo {
   description: string;
   careers: Career[];
 }
+
+
 
 export type ChatMode = 'structured' | 'freeform';
 export type ChatState = 'initial' | 'grade-selection' | 'stream-selection' | 'career-info' | 'freeform';

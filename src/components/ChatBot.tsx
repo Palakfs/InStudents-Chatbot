@@ -1,8 +1,9 @@
-import  { useState } from 'react';
-import { MessageCircle, Send, Sparkles, HelpCircle } from 'lucide-react';
+import { useState } from 'react';
+import { MessageCircle, Send} from 'lucide-react';
 import { Groq } from "groq-sdk";
 import { ChatMessage, Stream, ChatMode, ChatState, Grade } from '../types';
 import { streamData } from '../data';
+import counsellor_avatar from '../components/counsellor_avater.jpeg'
 
 const groq = new Groq({
   apiKey: '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',
@@ -10,17 +11,34 @@ const groq = new Groq({
 });
 
 const INITIAL_MESSAGE = "Welcome to your career counseling journey! 👋\n\nFirst, please tell me which grade you're in:\n\n1. Grade 9-10\n2. Grade 11-12";
+const HELP_MESSAGE = "You're now in help mode! Feel free to ask any specific questions about careers, colleges, or requirements. I'll do my best to help you!\n\nType 'menu' to return to the main menu.";
 
 export default function ChatBot() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { type: 'bot', content: INITIAL_MESSAGE }
   ]);
+
   const [input, setInput] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
   const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
+  
   const [chatState, setChatState] = useState<ChatState>('initial');
   const [chatMode, setChatMode] = useState<ChatMode>('structured');
   const [isLoading, setIsLoading] = useState(false);
+
+  const toggleChatMode = () => {
+    setChatMode(prevMode => {
+      const newMode = prevMode === 'structured' ? 'freeform' : 'structured';
+      const newMessage = newMode === 'freeform' ? HELP_MESSAGE : INITIAL_MESSAGE;
+      setMessages(prev => [...prev, { type: 'bot', content: newMessage }]);
+      if (newMode === 'structured') {
+        setSelectedGrade(null);
+        setSelectedStream(null);
+        setChatState('initial');
+      }
+      return newMode;
+    });
+  };
 
   const handleGradeSelection = (input: string) => {
     const grade = input === '1' ? '9-10' : input === '2' ? '11-12' : null;
@@ -162,14 +180,36 @@ export default function ChatBot() {
     <div className="max-w-2xl mx-auto p-4 bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between mb-4 p-3 bg-indigo-50 rounded-lg">
         <div className="flex items-center gap-2">
-          <Sparkles className="text-indigo-600" />
-          <h1 className="text-xl font-semibold text-indigo-900">Instudents Chatbot</h1>
+        <img 
+            src="https://static.wixstatic.com/media/69bd52_48ec0c1bca01434d85faf02f2549ca3e~mv2.png/v1/crop/x_44,y_82,w_758,h_252/fill/w_188,h_63,fp_0.50_0.50,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/InStudents%20(1)(1).png"
+            alt="InStudents Logo"
+            className="h-8 object-contain"
+          />
+          <h1 className="text-l font-semibold text-indigo-900">Powered by InStudents</h1>
         </div>
-        <div className="flex items-center gap-2 text-sm text-indigo-600">
-          <HelpCircle className="w-4 h-4" />
-          <span>{chatMode === 'freeform' ? 'Help Mode' : 'Menu Mode'}</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleChatMode}
+            className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {chatMode === 'freeform' ? 'Switch to Menu Mode' : 'Switch to Help Mode'}
+          </button>
         </div>
       </div>
+
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+        <img 
+            src={counsellor_avatar}
+            alt="Chatbot Avatar"
+            className="h-15 rounded-full object-contain"
+          />
+        </div>
+        <div className="text-sm text-gray-600">
+          Chat with Emma, your AI Career Advisor
+        </div>
+      </div>
+
 
       <div className="h-[500px] overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg">
         {messages.map((message, index) => (
@@ -218,4 +258,3 @@ export default function ChatBot() {
     </div>
   );
 }
-
