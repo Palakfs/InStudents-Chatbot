@@ -1,102 +1,156 @@
-import { useState } from 'react';
-import { MessageCircle, Send} from 'lucide-react';
+import React, { useState } from 'react';
+import { MessageCircle, Send } from 'lucide-react';
 import { Groq } from "groq-sdk";
-import { ChatMessage, Stream, ChatMode, ChatState, Grade } from '../types';
 import { streamData } from '../data';
-import counsellor_avatar from '../components/counsellor_avater.jpeg'
+import counsellor_avatar from '../components/counsellor_avater.jpeg';
 
 const groq = new Groq({
   apiKey: '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',
   dangerouslyAllowBrowser: true
 });
 
-const INITIAL_MESSAGE = "Welcome to your career counseling journey! 👋\n\nFirst, please tell me which grade you're in:\n\n1. Grade 9-10\n2. Grade 11-12";
-const HELP_MESSAGE = "You're now in help mode! Feel free to ask any specific questions about careers, colleges, or requirements. I'll do my best to help you!\n\nType 'menu' to return to the main menu.";
+interface ChatMessage {
+  type: 'user' | 'bot';
+  content: string;
+}
+
+interface UserInfo {
+  name?: string;
+  country?: string;
+  grade: string;
+  stream?: string;
+}
 
 export default function ChatBot() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { type: 'bot', content: INITIAL_MESSAGE }
-  ]);
-
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null);
-  const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
-  
-  const [chatState, setChatState] = useState<ChatState>('initial');
-  const [chatMode, setChatMode] = useState<ChatMode>('structured');
   const [isLoading, setIsLoading] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<string>('name');
+  const [setupComplete, setSetupComplete] = useState(false);
 
-  const toggleChatMode = () => {
-    setChatMode(prevMode => {
-      const newMode = prevMode === 'structured' ? 'freeform' : 'structured';
-      const newMessage = newMode === 'freeform' ? HELP_MESSAGE : INITIAL_MESSAGE;
-      setMessages(prev => [...prev, { type: 'bot', content: newMessage }]);
-      if (newMode === 'structured') {
-        setSelectedGrade(null);
-        setSelectedStream(null);
-        setChatState('initial');
-      }
-      return newMode;
-    });
-  };
+  // Initialize chat on component mount
+  React.useEffect(() => {
+    setMessages([{ 
+      type: 'bot', 
+      content: "Hi! I'm Emma, your career advisor. 🌟 I'm here to help you explore exciting career paths! First, what's your name?" 
+    }]);
+  }, []);
 
-  const handleGradeSelection = (input: string) => {
-    const grade = input === '1' ? '9-10' : input === '2' ? '11-12' : null;
-    if (grade) {
-      setSelectedGrade(grade);
-      if (grade === '9-10') {
-        return "Great! What field interests you the most?\n\n1. Science & Technology\n2. Commerce & Business\n3. Arts & Humanities\n4. Medical & Healthcare\n\nOr type 'help' to ask specific questions!";
-      } else {
-        return "Which stream are you currently pursuing?\n\n1. Science with Mathematics\n2. Science with Biology\n3. Commerce\n4. Arts\n\nOr type 'help' to ask specific questions!";
+  const handleSetupQuestion = async (userInput: string) => {
+    if (!userInfo || !setupComplete) {
+      switch (currentQuestion) {
+        case 'name':
+          setUserInfo({ name: userInput, country: '', grade: '' });
+          setCurrentQuestion('country');
+          return "Nice to meet you, " + userInput + "! 😊 Which country are you from?\n\n1. India 🇮🇳\n2. United Kingdom 🇬🇧\n\nPlease type 1 or 2.";
+        
+        case 'country':
+          const country = userInput === '1' ? 'India' : userInput === '2' ? 'United Kingdom' : '';
+          if (!country) {
+            return "Please select either 1 for India or 2 for United Kingdom.";
+          }
+          setUserInfo(prev => prev ? { ...prev, country } : null);
+          setCurrentQuestion('grade');
+          
+          if (country === 'India') {
+            return "Which class are you in?\n\n1. Class 9-10\n2. Class 11-12\n\nPlease type 1 or 2.";
+          } else {
+            return "Which year are you in?\n\n1. Year 9-11\n2. Year 12-13\n\nPlease type 1 or 2.";
+          }
+        
+        case 'grade':
+          const isIndia = userInfo?.country === 'India';
+          let grade = '';
+          
+          if (isIndia) {
+            grade = userInput === '1' ? 'Class 9-10' : userInput === '2' ? 'Class 11-12' : '';
+          } else {
+            grade = userInput === '1' ? 'Year 9-11' : userInput === '2' ? 'Year 12-13' : '';
+          }
+          
+          if (!grade) {
+            return "Please select either 1 or 2 for your grade.";
+          }
+
+          const updatedInfo = {
+            ...userInfo,
+            grade
+          };
+          setUserInfo(updatedInfo);
+          setSetupComplete(true);
+          
+      
+          logUserData(updatedInfo);
+          
+          return `Perfect! 🎓 Now I know you better, ${updatedInfo.name}. Feel free to ask me any questions about your career options, educational paths, or future opportunities.`;
       }
     }
-    return "Please select a valid option (1 or 2)";
+
+    return await getAIResponse(userInput);
   };
 
-  const handleStreamSelection = (input: string) => {
-    const streamMap: Record<string, Stream> = {
-      '1': 'science-maths',
-      '2': 'science-bio',
-      '3': 'commerce',
-      '4': 'arts'
-    };
-
-    const stream = streamMap[input];
-    if (stream) {
-      setSelectedStream(stream);
-      const streamInfo = streamData[stream];
-      return `Great choice! Let me tell you about ${streamInfo.name}:\n\n${streamInfo.description}\n\nWould you like to know about:\n1. Career options\n2. College requirements\n3. Future scope\n\nOr type "help" to ask specific questions!`;
-    }
-    return 'Please select a valid option (1-4) or type "help" for specific questions';
+  const logUserData = (userData: UserInfo) => {
+  
+    console.log('User session logged:', userData);
   };
 
-  const handleAIQuestion = async (question: string) => {
+  const getAIResponse = async (userInput: string) => {
+    if (!userInfo) return "I'm sorry, but I need to know a bit about you first.";
+
     try {
       setIsLoading(true);
-      const careerData = Object.values(streamData).flatMap(stream => 
-        stream.careers.map(career => ({
-          stream: stream.name,
-          ...career
-        }))
-      );
 
-      const systemPrompt = `You are a career counseling expert for Indian students. Use the following career data to provide guidance: ${JSON.stringify(careerData)}
+      const systemPrompt = `You are Emma, a friendly and professional career counselor for students. Your personality is warm, encouraging, and supportive, but you maintain professional boundaries.
+
+      Current student information:
+      Name: ${userInfo.name}
+      Country: ${userInfo.country}
+      Grade: ${userInfo.grade}
+
+      IMPORTANT GUIDELINES:
+      1. Always maintain a professional, child-safe environment
+      2. Never provide advice about non-academic or non-career topics
+      3. Refuse to engage with inappropriate questions
+      4. Focus solely on educational and career guidance
+      5. Use age-appropriate language and examples
+      6. Include emojis occasionally to maintain a friendly tone
+      7. Provide country-specific advice based on the education system in ${userInfo.country}
+
+      For India:
+      - Classes 9-10: Focus on stream selection (Science, Commerce, Arts) and foundation building
+      - Classes 11-12: Focus on college preparation, entrance exams, and career paths
       
-      Key guidelines:
-      1. Focus on practical, actionable advice
-      2. Consider the Indian education system and job market
-      3. Be encouraging but realistic
-      4. Provide specific examples and requirements
-      5. Keep responses concise but informative
-      
-      If the student's grade or stream is known, tailor the advice accordingly.
-      Student's grade: ${selectedGrade || 'unknown'}
-      Student's stream: ${selectedStream ? streamData[selectedStream].name : 'unknown'}`;
+      For UK:
+      - Years 9-11: Focus on GCSE choices, A-Level preparation, and career exploration
+      - Years 12-13: Focus on university applications, A-Levels, and specific career paths
+
+      When suggesting careers:
+      1. Focus on ${userInfo.country}-specific:
+         - Educational requirements
+         - University options
+         - Career paths
+         - Industry demand
+      2. Include:
+         - Required qualifications
+         - Key skills needed
+         - Top universities in ${userInfo.country}
+         - Future prospects
+      3. Consider the student's age and grade level
+      4. Provide practical next steps they can take
+
+      Reference career data: ${JSON.stringify(streamData)}
+
+      Remember to:
+      1. Tailor advice to ${userInfo.grade} level
+      2. Focus on ${userInfo.country} education system
+      3. Provide age-appropriate guidance
+      4. Include specific, actionable steps`;
 
       const completion = await groq.chat.completions.create({
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: question }
+          { role: "user", content: userInput }
         ],
         model: "mixtral-8x7b-32768",
         temperature: 0.7,
@@ -106,44 +160,9 @@ export default function ChatBot() {
       return completion.choices[0]?.message?.content || "I apologize, but I couldn't generate a response. Please try asking your question differently.";
     } catch (error) {
       console.error('AI Error:', error);
-      return "I'm having trouble processing your question. Please try again or use the structured options.";
+      return "I'm having trouble processing your question. Please try again.";
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  
-
-  const handleStructuredMessage = async (userInput: string) => {
-    if (userInput.toLowerCase() === 'help') {
-      setChatMode('freeform');
-      return "You're now in help mode! Feel free to ask any specific questions about careers, colleges, or requirements. I'll do my best to help you!\n\nType 'menu' to return to the main menu.";
-    }
-
-    if (!selectedGrade) {
-      return handleGradeSelection(userInput);
-    }
-
-    if (!selectedStream) {
-      return handleStreamSelection(userInput);
-    }
-
-    const streamInfo = streamData[selectedStream];
-    switch (userInput) {
-      case '1':
-        return streamInfo.careers.map((career, index) => 
-          `${index + 1}. ${career.title}\n${career.description}`
-        ).join('\n\n');
-      case '2':
-        return streamInfo.careers.map((career) => 
-          `${career.title}:\n${career.requirements.map(req => `• ${req}`).join('\n')}`
-        ).join('\n\n');
-      case '3':
-        return streamInfo.careers.map((career) => 
-          `${career.title}:\n${career.scope}`
-        ).join('\n\n');
-      default:
-        return 'Please select a valid option (1-3) or type "help" for specific questions';
     }
   };
 
@@ -158,42 +177,22 @@ export default function ChatBot() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
 
-    let botResponse: string;
-
-    if (input.toLowerCase() === 'menu') {
-      setChatMode('structured');
-      setSelectedGrade(null);
-      setSelectedStream(null);
-      setChatState('initial');
-      botResponse = INITIAL_MESSAGE;
-    } else {
-      botResponse = chatMode === 'structured' 
-        ? await handleStructuredMessage(input)
-        : await handleAIQuestion(input);
-    }
-
+    const botResponse = await handleSetupQuestion(input);
     setMessages(prev => [...prev, { type: 'bot', content: botResponse }]);
-    console.log(chatState);
   };
 
   return (
     <div className="max-w-2xl mx-auto p-4 bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between mb-4 p-3 bg-indigo-50 rounded-lg">
-        <div className="flex items-center gap-2">
-        <img 
+        <div className="flex items-center gap-4">
+          <img 
             src="https://static.wixstatic.com/media/69bd52_48ec0c1bca01434d85faf02f2549ca3e~mv2.png/v1/crop/x_44,y_82,w_758,h_252/fill/w_188,h_63,fp_0.50_0.50,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/InStudents%20(1)(1).png"
             alt="InStudents Logo"
             className="h-8 object-contain"
           />
+          <div>
           <h1 className="text-l font-semibold text-indigo-900">Powered by InStudents</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleChatMode}
-            className="px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            {chatMode === 'freeform' ? 'Switch to Menu Mode' : 'Switch to Help Mode'}
-          </button>
+          </div>
         </div>
       </div>
 
@@ -209,7 +208,6 @@ export default function ChatBot() {
           Chat with Emma, your AI Career Advisor
         </div>
       </div>
-
 
       <div className="h-[500px] overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg">
         {messages.map((message, index) => (
@@ -243,7 +241,7 @@ export default function ChatBot() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder={isLoading ? "Thinking..." : "Type your message..."}
+          placeholder={isLoading ? "Emma is thinking..." : "Type your message..."}
           disabled={isLoading}
           className="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
         />
