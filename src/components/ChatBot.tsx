@@ -5,7 +5,7 @@ import { streamData } from '../data';
 import counsellor_avatar from '../components/counsellor_avater.jpeg';
 
 const groq = new Groq({
-  apiKey: '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',
+  apiKey: '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',
   dangerouslyAllowBrowser: true
 });
 
