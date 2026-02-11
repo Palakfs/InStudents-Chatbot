@@ -152,7 +152,7 @@ export default function ChatBot() {
           { role: "system", content: systemPrompt },
           { role: "user", content: userInput }
         ],
-        model: "mixtral-8x7b-32768",
+        model: "llama-3.1-8b-instant",
         temperature: 0.7,
         max_tokens: 800,
       });
